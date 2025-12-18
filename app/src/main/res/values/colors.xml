@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <color name="teal">#088199</color>
+    <color name="tealDark">#069494</color>
+    <color name="tealLight">#8AD6CC</color>
+
+    <color name="coral">#FF8559</color>
+    <color name="coralDark">#F97171</color>
+    <color name="coralLight">#F99192</color>
+
+    <color name="bgPrimary">#F8FAFB</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surfaceTint">#E0F7FA</color>
+
+    <color name="textPrimary">#08262C</color>
+    <color name="textSecondary">#5A6B71</color>
+    <color name="textHint">#9CA8AD</color>
+
+    <color name="success">#10B981</color>
+    <color name="error">#EF4444</color>
+    <color name="warning">#F59E0B</color>
+
+    <color name="divider">#E5E7EB</color>
+    <color name="border">#CBD5E1</color>
+    <color name="overlay">#80000000</color>
+
+    <color name="black">#000000</color>
+    <color name="white">#FFFFFF</color>
+
+</resources>
