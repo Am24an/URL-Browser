@@ -71,7 +71,7 @@
                 app:boxCornerRadiusTopStart="16dp"
                 app:boxStrokeColor="@color/teal"
                 app:errorEnabled="true"
-                app:hintTextColor="@color/textHint">
+                app:hintTextColor="@color/textSecondary">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etUrl"

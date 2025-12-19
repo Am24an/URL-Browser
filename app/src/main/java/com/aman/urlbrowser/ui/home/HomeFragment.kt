@@ -1,60 +1,121 @@
 package com.aman.urlbrowser.ui.home
 
 import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.navigation.fragment.findNavController
 import com.aman.urlbrowser.R
+import com.aman.urlbrowser.databinding.FragmentHomeBinding
+import com.aman.urlbrowser.utils.ValidationResult
+import com.google.android.material.snackbar.Snackbar
 
-// TODO: Rename parameter arguments, choose names that match
-// the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-private const val ARG_PARAM1 = "param1"
-private const val ARG_PARAM2 = "param2"
-
-/**
- * A simple [Fragment] subclass.
- * Use the [HomeFragment.newInstance] factory method to
- * create an instance of this fragment.
- */
 class HomeFragment : Fragment() {
-    // TODO: Rename and change types of parameters
-    private var param1: String? = null
-    private var param2: String? = null
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        arguments?.let {
-            param1 = it.getString(ARG_PARAM1)
-            param2 = it.getString(ARG_PARAM2)
+    private var _binding: FragmentHomeBinding? = null
+    private val binding get() = _binding!!
+
+    private val viewModel: HomeViewModel by viewModels()
+    private lateinit var carouselAdapter: CarouselAdapter
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentHomeBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupCarousel()
+        setupClickListeners()
+        observeViewModel()
+        handleWebViewResult()
+    }
+
+    private fun setupCarousel() {
+        val images = listOf(
+            R.drawable.carousel_1,
+            R.drawable.carousel_2,
+            R.drawable.carousel_3
+        )
+
+        carouselAdapter = CarouselAdapter(images)
+        binding.viewPagerCarousel.adapter = carouselAdapter
+        binding.dotsIndicator.attachTo(binding.viewPagerCarousel)
+    }
+
+    private fun setupClickListeners() {
+        binding.btnOpen.setOnClickListener {
+            val url = binding.etUrl.text.toString()
+            viewModel.validateAndOpenUrl(url)
+        }
+
+        binding.etUrl.setOnEditorActionListener { _, _, _ ->
+            val url = binding.etUrl.text.toString()
+            viewModel.validateAndOpenUrl(url)
+            true
+        }
+
+        binding.toolbar.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.action_history -> {
+                    findNavController().navigate(R.id.action_homeFragment_to_historyFragment)
+                    true
+                }
+
+                else -> false
+            }
         }
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_home, container, false)
-    }
+    private fun observeViewModel() {
+        viewModel.urlValidationResult.observe(viewLifecycleOwner) { result ->
+            when (result) {
+                is ValidationResult.Success -> {
+                    binding.tilUrl.error = null
+                }
 
-    companion object {
-        /**
-         * Use this factory method to create a new instance of
-         * this fragment using the provided parameters.
-         *
-         * @param param1 Parameter 1.
-         * @param param2 Parameter 2.
-         * @return A new instance of fragment HomeFragment.
-         */
-        // TODO: Rename and change types and number of parameters
-        @JvmStatic
-        fun newInstance(param1: String, param2: String) =
-            HomeFragment().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_PARAM1, param1)
-                    putString(ARG_PARAM2, param2)
+                is ValidationResult.Error -> {
+                    binding.tilUrl.error = result.message
+                    Snackbar.make(binding.root, result.message, Snackbar.LENGTH_SHORT).show()
                 }
             }
+        }
+
+        viewModel.navigateToWebView.observe(viewLifecycleOwner) { url ->
+            url?.let {
+                // Simple Bundle approach - No Safe Args needed!
+                val bundle = Bundle().apply {
+                    putString("url", it)
+                }
+                findNavController().navigate(
+                    R.id.action_homeFragment_to_webViewFragment,
+                    bundle
+                )
+                viewModel.onWebViewNavigationComplete()
+            }
+        }
+    }
+
+
+    private fun handleWebViewResult() {
+        parentFragmentManager.setFragmentResultListener(
+            "url_result",
+            viewLifecycleOwner
+        ) { _, bundle ->
+            val url = bundle.getString("url") ?: ""
+            binding.etUrl.setText(url)
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }

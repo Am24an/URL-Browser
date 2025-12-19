@@ -1,60 +1,120 @@
 package com.aman.urlbrowser.ui.history
 
 import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import com.aman.urlbrowser.R
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.navigation.fragment.findNavController
+import com.aman.urlbrowser.databinding.FragmentHistoryBinding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 
-// TODO: Rename parameter arguments, choose names that match
-// the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-private const val ARG_PARAM1 = "param1"
-private const val ARG_PARAM2 = "param2"
-
-/**
- * A simple [Fragment] subclass.
- * Use the [HistoryFragment.newInstance] factory method to
- * create an instance of this fragment.
- */
 class HistoryFragment : Fragment() {
-    // TODO: Rename and change types of parameters
-    private var param1: String? = null
-    private var param2: String? = null
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        arguments?.let {
-            param1 = it.getString(ARG_PARAM1)
-            param2 = it.getString(ARG_PARAM2)
+    private var _binding: FragmentHistoryBinding? = null
+    private val binding get() = _binding!!
+
+    private val viewModel: HistoryViewModel by viewModels()
+    private lateinit var historyAdapter: HistoryAdapter
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentHistoryBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupRecyclerView()
+        setupClickListeners()
+        observeViewModel()
+    }
+
+    private fun setupRecyclerView() {
+        historyAdapter = HistoryAdapter()
+        binding.rvHistory.adapter = historyAdapter
+    }
+
+    private fun setupClickListeners() {
+        binding.toolbar.setNavigationOnClickListener {
+            findNavController().navigateUp()
+        }
+
+        binding.ivClear.setOnClickListener {
+            showClearConfirmationDialog()
+        }
+
+        binding.ivUpload.setOnClickListener {
+            viewModel.uploadHistory()
         }
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_history, container, false)
-    }
+    private fun observeViewModel() {
+        viewModel.allUrls.observe(viewLifecycleOwner) { historyList ->
+            if (historyList.isEmpty()) {
+                binding.rvHistory.visibility = View.GONE
+                binding.layoutEmpty.visibility = View.VISIBLE
+            } else {
+                binding.rvHistory.visibility = View.VISIBLE
+                binding.layoutEmpty.visibility = View.GONE
+                historyAdapter.submitList(historyList)
+            }
+        }
 
-    companion object {
-        /**
-         * Use this factory method to create a new instance of
-         * this fragment using the provided parameters.
-         *
-         * @param param1 Parameter 1.
-         * @param param2 Parameter 2.
-         * @return A new instance of fragment HistoryFragment.
-         */
-        // TODO: Rename and change types and number of parameters
-        @JvmStatic
-        fun newInstance(param1: String, param2: String) =
-            HistoryFragment().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_PARAM1, param1)
-                    putString(ARG_PARAM2, param2)
+        viewModel.uploadStatus.observe(viewLifecycleOwner) { status ->
+            when (status) {
+                is UploadStatus.Loading -> {
+                    showSnackbar("Uploading history...")
+                }
+
+                is UploadStatus.Success -> {
+                    showSnackbar(status.message)
+                    viewModel.resetUploadStatus()
+                }
+
+                is UploadStatus.Error -> {
+                    showSnackbar(status.message)
+                    viewModel.resetUploadStatus()
+                }
+
+                is UploadStatus.Idle -> {
+                    // Do nothing
                 }
             }
+        }
+
+        viewModel.clearStatus.observe(viewLifecycleOwner) { success ->
+            if (success) {
+                showSnackbar("History cleared successfully")
+            } else {
+                showSnackbar("Failed to clear history")
+            }
+        }
+    }
+
+    private fun showClearConfirmationDialog() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Clear History")
+            .setMessage("Are you sure you want to delete all browsing history?")
+            .setPositiveButton("Clear") { _, _ ->
+                viewModel.clearAllHistory()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showSnackbar(message: String) {
+        Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT).show()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }

@@ -1,60 +1,138 @@
 package com.aman.urlbrowser.ui.webview
 
+import android.graphics.Bitmap
 import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import com.aman.urlbrowser.R
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.core.os.bundleOf
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.setFragmentResult
+import androidx.fragment.app.viewModels
+import androidx.navigation.fragment.findNavController
+import com.aman.urlbrowser.databinding.FragmentWebViewBinding
 
-// TODO: Rename parameter arguments, choose names that match
-// the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-private const val ARG_PARAM1 = "param1"
-private const val ARG_PARAM2 = "param2"
-
-/**
- * A simple [Fragment] subclass.
- * Use the [WebViewFragment.newInstance] factory method to
- * create an instance of this fragment.
- */
 class WebViewFragment : Fragment() {
-    // TODO: Rename and change types of parameters
-    private var param1: String? = null
-    private var param2: String? = null
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        arguments?.let {
-            param1 = it.getString(ARG_PARAM1)
-            param2 = it.getString(ARG_PARAM2)
+    private var _binding: FragmentWebViewBinding? = null
+    private val binding get() = _binding!!
+
+    private val viewModel: WebViewViewModel by viewModels()
+    private var initialUrl: String = ""
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentWebViewBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        initialUrl = arguments?.getString("url") ?: ""
+
+        setupWebView()
+        setupClickListeners()
+        observeViewModel()
+
+        if (initialUrl.isNotEmpty()) {
+            binding.webView.loadUrl(initialUrl)
+            viewModel.updateCurrentUrl(initialUrl)
         }
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_web_view, container, false)
-    }
+    private fun setupWebView() {
+        binding.webView.apply {
+            settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                loadWithOverviewMode = true
+                useWideViewPort = true
+                builtInZoomControls = false
+                displayZoomControls = false
 
-    companion object {
-        /**
-         * Use this factory method to create a new instance of
-         * this fragment using the provided parameters.
-         *
-         * @param param1 Parameter 1.
-         * @param param2 Parameter 2.
-         * @return A new instance of fragment WebViewFragment.
-         */
-        // TODO: Rename and change types and number of parameters
-        @JvmStatic
-        fun newInstance(param1: String, param2: String) =
-            WebViewFragment().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_PARAM1, param1)
-                    putString(ARG_PARAM2, param2)
+                cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                databaseEnabled = true
+                allowFileAccess = true
+                allowContentAccess = true
+            }
+
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+
+            webViewClient = object : WebViewClient() {
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    url?.let { viewModel.updateCurrentUrl(it) }
+                }
+
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    url?.let { viewModel.updateCurrentUrl(it) }
                 }
             }
+
+            webChromeClient = object : WebChromeClient() {
+                override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                    super.onProgressChanged(view, newProgress)
+                    viewModel.updateLoadingProgress(newProgress)
+                }
+            }
+        }
+    }
+
+    private fun setupClickListeners() {
+        binding.toolbar.setNavigationOnClickListener {
+            val currentUrl = binding.webView.url ?: initialUrl
+            viewModel.onBackButtonClicked(currentUrl)
+        }
+
+        binding.ivClose.setOnClickListener {
+            viewModel.onCloseButtonClicked()
+        }
+    }
+
+    private fun observeViewModel() {
+        viewModel.currentUrl.observe(viewLifecycleOwner) { url ->
+            binding.tvCurrentUrl.text = url
+        }
+
+        viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
+            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+        }
+
+        viewModel.loadingProgress.observe(viewLifecycleOwner) { progress ->
+            binding.progressBar.progress = progress
+        }
+
+        viewModel.navigateBack.observe(viewLifecycleOwner) { navigationType ->
+            navigationType?.let {
+                when (it) {
+                    is NavigationType.Back -> {
+                        // Retain URL - pass back to HomeFragment
+                        setFragmentResult("url_result", bundleOf("url" to it.retainUrl))
+                        findNavController().navigateUp()
+                    }
+
+                    is NavigationType.Close -> {
+                        // Clear URL - don't pass anything
+                        setFragmentResult("url_result", bundleOf("url" to ""))
+                        findNavController().navigateUp()
+                    }
+                }
+                viewModel.onNavigationComplete()
+            }
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        binding.webView.destroy()
+        _binding = null
     }
 }
